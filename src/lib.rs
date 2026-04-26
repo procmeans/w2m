@@ -2,5 +2,6 @@ pub mod cli;
 pub mod converter;
 pub mod error;
 pub mod extractor;
+pub mod fetcher;
 pub mod output;
 pub mod pipeline;
