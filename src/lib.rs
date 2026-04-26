@@ -6,3 +6,4 @@ pub mod extractor;
 pub mod fetcher;
 pub mod output;
 pub mod pipeline;
+pub mod renderer;
