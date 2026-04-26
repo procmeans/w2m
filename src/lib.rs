@@ -3,3 +3,4 @@ pub mod converter;
 pub mod error;
 pub mod extractor;
 pub mod output;
+pub mod pipeline;
