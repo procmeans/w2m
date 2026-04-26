@@ -38,7 +38,7 @@ pub fn write_bundle(dir: &Path, body_md: &str, meta: &Meta) -> Result<()> {
     let frontmatter = format!(
         "---\ntitle: {}\nsource_url: {}\nfetched_at: {}\nrender_mode: {}\n---\n\n",
         yaml_escape(meta.title),
-        meta.source_url,
+        yaml_escape(meta.source_url),
         meta.fetched_at.to_rfc3339(),
         meta.render_mode.as_str(),
     );
@@ -97,11 +97,25 @@ mod tests {
             render_mode: RenderMode::Static,
         };
         let err = write_bundle(dir.path(), "x", &m).unwrap_err();
-        matches!(err, W2mError::OutputExists(_));
+        assert!(matches!(err, W2mError::OutputExists(_)));
     }
 
     #[test]
     fn yaml_escape_handles_quotes() {
         assert_eq!(yaml_escape(r#"a"b\c"#), r#""a\"b\\c""#);
+    }
+
+    #[test]
+    fn frontmatter_escapes_source_url_with_special_chars() {
+        let dir = TempDir::new().unwrap();
+        let m = Meta {
+            title: "T",
+            source_url: "https://example.com:8080/x?a=1#frag",
+            fetched_at: Utc::now(),
+            render_mode: RenderMode::Static,
+        };
+        write_bundle(dir.path(), "", &m).unwrap();
+        let content = std::fs::read_to_string(dir.path().join("index.md")).unwrap();
+        assert!(content.contains("source_url: \"https://example.com:8080/x?a=1#frag\""));
     }
 }
