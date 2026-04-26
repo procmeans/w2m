@@ -5,13 +5,27 @@ downloading inline images alongside.
 
 ## Install
 
-Requires Rust 1.74+ and (for the `--render` path) a local Chrome or Chromium.
+`--render` requires a local Chrome / Chromium. Set `CHROME_PATH=/path/to/chrome`
+if it isn't auto-detected.
+
+### Homebrew (macOS, Linux)
+
+```bash
+brew install procmeans/w2m/w2m
+```
+
+### From source (any platform with Rust 1.74+)
+
+```bash
+cargo install --git https://github.com/procmeans/w2m
+```
+
+Or, in a clone of this repo:
 
 ```bash
 cargo build --release
+# binary at target/release/w2m
 ```
-
-The binary lands at `target/release/w2m`.
 
 ## Usage
 
