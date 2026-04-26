@@ -1,17 +1,4 @@
-               if [ "${{ matrix.cross }}" = "true" ]; then
-                 cross build --release --target ${{ matrix.target }}
-               else
-                 cargo build --release --target ${{ matrix.target }}
-               fi
-
-           - name: Package
-             shell: bash
-             run: |
-               ARCHIVE="w2m-${{ github.ref_name }}-${{ matrix.target }}.tar.gz"
-               tar czf "$ARCHIVE" -C "target/${{ matrix.target }}/release" w2m
-               shasum -a 256 "$ARCHIVE" | tee "$ARCHIVE.sha256"
-
-           - name: Upload to release
+- name: Upload to release
              uses: softprops/action-gh-release@v2
              with:
                files: |
