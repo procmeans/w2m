@@ -7,7 +7,7 @@ class W2m < Formula
   on_macos do
     on_arm do
       url "https://github.com/procmeans/w2m/releases/download/v#{version}/w2m-v#{version}-aarch64-apple-darwin.tar.gz"
-      sha256 "REPLACE_WITH_SHA256_FROM_RELEASE"
+      sha256 "e4fe33e51884de860c4bf2f4380f47ab075fda390f74cdf24fd9618d275d5a2a"
     end
     on_intel do
       odie "Intel macOS is not currently distributed as a prebuilt binary. Build from source: cargo install --git https://github.com/procmeans/w2m"
@@ -17,7 +17,7 @@ class W2m < Formula
   on_linux do
     on_intel do
       url "https://github.com/procmeans/w2m/releases/download/v#{version}/w2m-v#{version}-x86_64-unknown-linux-gnu.tar.gz"
-      sha256 "REPLACE_WITH_SHA256_FROM_RELEASE"
+      sha256 "2dd80076ac970e421ca439a1ee71e04da4b412a4a4f65c4bcbc41dceca7513f2"
     end
     on_arm do
       odie "Linux ARM is not currently distributed as a prebuilt binary. Build from source: cargo install --git https://github.com/procmeans/w2m"
