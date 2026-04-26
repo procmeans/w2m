@@ -24,7 +24,7 @@ fn extract_with_selector(html: &str, sel: &str) -> Result<Article> {
         .unwrap_or_default();
 
     let parsed = Selector::parse(sel)
-        .map_err(|e| W2mError::InvalidUrl(format!("bad selector: {e:?}")))?;
+        .map_err(|e| W2mError::InvalidSelector(format!("{e:?}")))?;
     let node = doc.select(&parsed).next().ok_or(W2mError::ExtractionEmpty)?;
     let content_html = node.html();
 
@@ -38,7 +38,7 @@ fn extract_with_selector(html: &str, sel: &str) -> Result<Article> {
 fn extract_with_readability(html: &str, base_url: &Url) -> Result<Article> {
     let mut bytes = std::io::Cursor::new(html.as_bytes().to_vec());
     let product = readability::extractor::extract(&mut bytes, base_url)
-        .map_err(|e| W2mError::Render(format!("readability: {e}")))?;
+        .map_err(|e| W2mError::ExtractionFailed(format!("readability: {e}")))?;
 
     if product.content.trim().is_empty() {
         return Err(W2mError::ExtractionEmpty);
@@ -90,6 +90,6 @@ mod tests {
     fn empty_spa_returns_extraction_empty() {
         let html = fixture("empty_spa.html");
         let err = extract(&html, &url(), None).unwrap_err();
-        assert!(matches!(err, W2mError::ExtractionEmpty | W2mError::Render(_)));
+        assert!(matches!(err, W2mError::ExtractionEmpty | W2mError::ExtractionFailed(_)));
     }
 }

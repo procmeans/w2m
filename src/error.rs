@@ -27,6 +27,12 @@ pub enum W2mError {
 
     #[error("URL parse error: {0}")]
     UrlParse(#[from] url::ParseError),
+
+    #[error("invalid CSS selector: {0}")]
+    InvalidSelector(String),
+
+    #[error("extraction failed: {0}")]
+    ExtractionFailed(String),
 }
 
 impl W2mError {
@@ -35,7 +41,7 @@ impl W2mError {
         match self {
             W2mError::Http(_) => 2,
             W2mError::ChromeNotFound | W2mError::Render(_) => 3,
-            W2mError::ExtractionEmpty => 4,
+            W2mError::ExtractionEmpty | W2mError::ExtractionFailed(_) => 4,
             _ => 1,
         }
     }
