@@ -26,13 +26,12 @@ impl RenderMode {
 }
 
 pub fn write_bundle(dir: &Path, body_md: &str, meta: &Meta) -> Result<()> {
-    if dir.exists() {
-        let mut entries = fs::read_dir(dir)?;
-        if entries.next().is_some() {
-            return Err(W2mError::OutputExists(dir.to_path_buf()));
-        }
-    } else {
+    if !dir.exists() {
         fs::create_dir_all(dir)?;
+    }
+    let index_path = dir.join("index.md");
+    if index_path.exists() {
+        return Err(W2mError::OutputExists(index_path));
     }
 
     let frontmatter = format!(
@@ -86,9 +85,9 @@ mod tests {
     }
 
     #[test]
-    fn errors_when_dir_non_empty() {
+    fn errors_when_index_already_exists() {
         let dir = TempDir::new().unwrap();
-        std::fs::write(dir.path().join("existing.txt"), "x").unwrap();
+        std::fs::write(dir.path().join("index.md"), "old").unwrap();
         let (title, url) = meta();
         let m = Meta {
             title: &title,
@@ -98,6 +97,22 @@ mod tests {
         };
         let err = write_bundle(dir.path(), "x", &m).unwrap_err();
         assert!(matches!(err, W2mError::OutputExists(_)));
+    }
+
+    #[test]
+    fn allows_writing_into_dir_with_unrelated_subdirs() {
+        // Pipeline creates `assets/` before writing index.md; that must not error.
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir(dir.path().join("assets")).unwrap();
+        let (title, url) = meta();
+        let m = Meta {
+            title: &title,
+            source_url: &url,
+            fetched_at: Utc::now(),
+            render_mode: RenderMode::Static,
+        };
+        write_bundle(dir.path(), "x", &m).unwrap();
+        assert!(dir.path().join("index.md").exists());
     }
 
     #[test]
