@@ -1,13 +1,13 @@
 class W2m < Formula
   desc "Download web pages (incl. SPAs) and convert them to Markdown"
   homepage "https://github.com/procmeans/w2m"
-  version "0.1.2"
+  version "0.1.3"
   license "MIT" # change if you pick a different license
 
   on_macos do
     on_arm do
       url "https://github.com/procmeans/w2m/releases/download/v#{version}/w2m-v#{version}-aarch64-apple-darwin.tar.gz"
-      sha256 "7dd3ff10f285ed77249a95a24bc21ce46de9f9fe86c32854ed7053a4d3fe14e6"
+      sha256 "347510e772204644a49360336dc87a0cc60eb12a6ecfd80071f9039005ddaee7"
     end
     on_intel do
       odie "Intel macOS is not currently distributed as a prebuilt binary. Build from source: cargo install --git https://github.com/procmeans/w2m"
@@ -17,7 +17,7 @@ class W2m < Formula
   on_linux do
     on_intel do
       url "https://github.com/procmeans/w2m/releases/download/v#{version}/w2m-v#{version}-x86_64-unknown-linux-gnu.tar.gz"
-      sha256 "99b269c442bb442672c0e1e224672d529150effc6ef180b53876a2d084d41a11"
+      sha256 "c495be05084a0a1f59e1e6871cd28150a846053ad8fe32fbc5e0d0b15780ef40"
     end
     on_arm do
       odie "Linux ARM is not currently distributed as a prebuilt binary. Build from source: cargo install --git https://github.com/procmeans/w2m"
