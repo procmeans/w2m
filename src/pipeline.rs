@@ -8,6 +8,7 @@ use crate::renderer::{self, RenderOpts};
 use chrono::Utc;
 use scraper::{Html, Selector};
 use std::path::PathBuf;
+use std::time::Duration;
 use url::Url;
 
 pub struct Opts {
@@ -17,17 +18,27 @@ pub struct Opts {
     pub selector: Option<String>,
     pub no_assets: bool,
     pub concurrency: usize,
+    pub wait_ms: u64,
+}
+
+fn render_opts(wait_ms: u64) -> RenderOpts {
+    RenderOpts {
+        timeout: Duration::from_secs(30),
+        settle: Duration::from_millis(wait_ms),
+    }
 }
 
 pub async fn run(url: Url, opts: Opts) -> Result<()> {
+    let render = render_opts(opts.wait_ms);
+
     let (html, render_mode) = if opts.force_render {
-        let html = renderer::render_dynamic(&url, &RenderOpts::default()).await?;
+        let html = renderer::render_dynamic(&url, &render).await?;
         (html, RenderMode::Headless)
     } else {
         let static_html = fetcher::fetch_static(&url).await?;
         if !opts.no_render && looks_like_empty_spa(&static_html) {
             tracing::info!("static HTML looks like an SPA shell; falling back to headless");
-            let html = renderer::render_dynamic(&url, &RenderOpts::default()).await?;
+            let html = renderer::render_dynamic(&url, &render).await?;
             (html, RenderMode::Headless)
         } else {
             (static_html, RenderMode::Static)
@@ -38,7 +49,7 @@ pub async fn run(url: Url, opts: Opts) -> Result<()> {
         Ok(a) => a,
         Err(W2mError::ExtractionEmpty) if !opts.force_render && !opts.no_render => {
             tracing::info!("extraction empty; retrying with headless render");
-            let rendered = renderer::render_dynamic(&url, &RenderOpts::default()).await?;
+            let rendered = renderer::render_dynamic(&url, &render).await?;
             extractor::extract(&rendered, &url, opts.selector.as_deref())?
         }
         Err(e) => return Err(e),

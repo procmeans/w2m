@@ -38,6 +38,7 @@ async fn end_to_end_static_with_image_download() {
         selector: None,
         no_assets: false,
         concurrency: 2,
+        wait_ms: 0,
     };
 
     run(url, opts).await.unwrap();

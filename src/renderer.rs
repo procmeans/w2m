@@ -6,11 +6,15 @@ use url::Url;
 
 pub struct RenderOpts {
     pub timeout: Duration,
+    pub settle: Duration,
 }
 
 impl Default for RenderOpts {
     fn default() -> Self {
-        Self { timeout: Duration::from_secs(30) }
+        Self {
+            timeout: Duration::from_secs(30),
+            settle: Duration::from_millis(2000),
+        }
     }
 }
 
@@ -47,7 +51,7 @@ pub async fn render_dynamic(url: &Url, opts: &RenderOpts) -> Result<String> {
         page.wait_for_navigation()
             .await
             .map_err(|e| W2mError::Render(e.to_string()))?;
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        tokio::time::sleep(opts.settle).await;
         let html = page
             .content()
             .await

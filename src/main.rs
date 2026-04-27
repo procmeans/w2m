@@ -28,6 +28,7 @@ async fn main() -> ExitCode {
         selector: cli.selector,
         no_assets: cli.no_assets,
         concurrency: cli.concurrency,
+        wait_ms: cli.wait_ms,
     };
 
     match run(url, opts).await {

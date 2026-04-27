@@ -31,6 +31,11 @@ pub struct Cli {
     #[arg(long, default_value_t = 8)]
     pub concurrency: usize,
 
+    /// Milliseconds to wait after navigation before reading the rendered DOM
+    /// (only relevant for the headless render path). Heavy SPAs may need 3000-5000.
+    #[arg(long, default_value_t = 2000)]
+    pub wait_ms: u64,
+
     /// Increase verbosity (-v debug, -vv trace).
     #[arg(short, action = clap::ArgAction::Count)]
     pub verbose: u8,
