@@ -23,16 +23,21 @@ fn extract_with_selector(html: &str, sel: &str) -> Result<Article> {
         .map(|t| t.text().collect::<String>().trim().to_string())
         .unwrap_or_default();
 
-    let parsed = Selector::parse(sel)
-        .map_err(|e| W2mError::InvalidSelector(format!("{e:?}")))?;
-    let node = doc.select(&parsed).next().ok_or(W2mError::ExtractionEmpty)?;
+    let parsed = Selector::parse(sel).map_err(|e| W2mError::InvalidSelector(format!("{e:?}")))?;
+    let node = doc
+        .select(&parsed)
+        .next()
+        .ok_or(W2mError::ExtractionEmpty)?;
     let content_html = node.html();
 
     if content_html.trim().is_empty() {
         return Err(W2mError::ExtractionEmpty);
     }
 
-    Ok(Article { title, content_html })
+    Ok(Article {
+        title,
+        content_html,
+    })
 }
 
 fn extract_with_readability(html: &str, base_url: &Url) -> Result<Article> {
@@ -64,7 +69,9 @@ fn extract_with_readability(html: &str, base_url: &Url) -> Result<Article> {
 mod tests {
     use super::*;
 
-    fn url() -> Url { Url::parse("https://example.com/page").unwrap() }
+    fn url() -> Url {
+        Url::parse("https://example.com/page").unwrap()
+    }
     fn fixture(name: &str) -> String {
         std::fs::read_to_string(format!("tests/fixtures/{name}")).unwrap()
     }
@@ -90,6 +97,9 @@ mod tests {
     fn empty_spa_returns_extraction_empty() {
         let html = fixture("empty_spa.html");
         let err = extract(&html, &url(), None).unwrap_err();
-        assert!(matches!(err, W2mError::ExtractionEmpty | W2mError::ExtractionFailed(_)));
+        assert!(matches!(
+            err,
+            W2mError::ExtractionEmpty | W2mError::ExtractionFailed(_)
+        ));
     }
 }

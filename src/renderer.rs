@@ -28,20 +28,16 @@ pub async fn render_dynamic(url: &Url, opts: &RenderOpts) -> Result<String> {
         .build()
         .map_err(|e| W2mError::Render(format!("config: {e}")))?;
 
-    let (mut browser, mut handler) = Browser::launch(config)
-        .await
-        .map_err(|e| {
-            let msg = e.to_string();
-            if msg.contains("Could not find") || msg.contains("No such file") {
-                W2mError::ChromeNotFound
-            } else {
-                W2mError::Render(msg)
-            }
-        })?;
+    let (mut browser, mut handler) = Browser::launch(config).await.map_err(|e| {
+        let msg = e.to_string();
+        if msg.contains("Could not find") || msg.contains("No such file") {
+            W2mError::ChromeNotFound
+        } else {
+            W2mError::Render(msg)
+        }
+    })?;
 
-    let handler_task = tokio::spawn(async move {
-        while let Some(_) = handler.next().await {}
-    });
+    let handler_task = tokio::spawn(async move { while handler.next().await.is_some() {} });
 
     let result = async {
         let page = browser

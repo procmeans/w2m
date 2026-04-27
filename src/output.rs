@@ -25,6 +25,19 @@ impl RenderMode {
     }
 }
 
+/// Refuse to operate on a directory that already contains an `index.md`.
+///
+/// Call this *before* any network or filesystem work so the user can't lose
+/// data when the destination is already populated. `write_bundle` repeats
+/// the same check at the moment of writing as defense in depth.
+pub fn precheck(dir: &Path) -> Result<()> {
+    let index = dir.join("index.md");
+    if index.exists() {
+        return Err(W2mError::OutputExists(index));
+    }
+    Ok(())
+}
+
 pub fn write_bundle(dir: &Path, body_md: &str, meta: &Meta) -> Result<()> {
     if !dir.exists() {
         fs::create_dir_all(dir)?;
@@ -97,6 +110,26 @@ mod tests {
         };
         let err = write_bundle(dir.path(), "x", &m).unwrap_err();
         assert!(matches!(err, W2mError::OutputExists(_)));
+    }
+
+    #[test]
+    fn precheck_rejects_existing_index() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("index.md"), "old").unwrap();
+        let err = precheck(dir.path()).unwrap_err();
+        assert!(matches!(err, W2mError::OutputExists(_)));
+    }
+
+    #[test]
+    fn precheck_passes_for_missing_or_empty_dir() {
+        let dir = TempDir::new().unwrap();
+        precheck(dir.path()).unwrap();
+        // Pre-existing assets/ subdir is fine — the pipeline creates one.
+        std::fs::create_dir(dir.path().join("assets")).unwrap();
+        precheck(dir.path()).unwrap();
+        // Nonexistent dir is also fine; write_bundle creates it.
+        let nope = dir.path().join("not-yet");
+        precheck(&nope).unwrap();
     }
 
     #[test]

@@ -19,6 +19,12 @@ pub enum W2mError {
     #[error("could not extract main content (try --selector)")]
     ExtractionEmpty,
 
+    #[error(
+        "page looks like an empty SPA shell and rendering is disabled; \
+         remove --no-render (or `no_render = true` in config), or pass --render"
+    )]
+    EmptySpaWithoutRender,
+
     #[error("output path already exists and is not empty: {0}")]
     OutputExists(PathBuf),
 
@@ -41,7 +47,9 @@ impl W2mError {
         match self {
             W2mError::Http(_) => 2,
             W2mError::ChromeNotFound | W2mError::Render(_) => 3,
-            W2mError::ExtractionEmpty | W2mError::ExtractionFailed(_) => 4,
+            W2mError::ExtractionEmpty
+            | W2mError::ExtractionFailed(_)
+            | W2mError::EmptySpaWithoutRender => 4,
             _ => 1,
         }
     }

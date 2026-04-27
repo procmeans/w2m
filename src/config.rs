@@ -37,8 +37,9 @@ impl Config {
     ///   1. `$HOME/.config/w2m/config.toml`           (preferred, used by gh/nvim/etc.)
     ///   2. platform-native location via `dirs::config_dir`
     ///      (`~/Library/Application Support/w2m/config.toml` on macOS,
-    ///       `$XDG_CONFIG_HOME/w2m/config.toml` on Linux,
-    ///       `%APPDATA%\w2m\config.toml` on Windows)
+    ///      `$XDG_CONFIG_HOME/w2m/config.toml` on Linux,
+    ///      `%APPDATA%\w2m\config.toml` on Windows)
+    ///
     /// Returns the first one that exists; otherwise the preferred path
     /// (so a future write goes there).
     pub fn default_path() -> Option<PathBuf> {
@@ -73,12 +74,24 @@ impl Config {
     pub fn rules_for(&self, host: &str) -> HostRules {
         let mut merged = self.defaults.clone();
         if let Some(host_rules) = self.hosts.get(host) {
-            if host_rules.render.is_some()       { merged.render = host_rules.render; }
-            if host_rules.no_render.is_some()    { merged.no_render = host_rules.no_render; }
-            if host_rules.selector.is_some()     { merged.selector = host_rules.selector.clone(); }
-            if host_rules.no_assets.is_some()    { merged.no_assets = host_rules.no_assets; }
-            if host_rules.concurrency.is_some()  { merged.concurrency = host_rules.concurrency; }
-            if host_rules.wait_ms.is_some()      { merged.wait_ms = host_rules.wait_ms; }
+            if host_rules.render.is_some() {
+                merged.render = host_rules.render;
+            }
+            if host_rules.no_render.is_some() {
+                merged.no_render = host_rules.no_render;
+            }
+            if host_rules.selector.is_some() {
+                merged.selector = host_rules.selector.clone();
+            }
+            if host_rules.no_assets.is_some() {
+                merged.no_assets = host_rules.no_assets;
+            }
+            if host_rules.concurrency.is_some() {
+                merged.concurrency = host_rules.concurrency;
+            }
+            if host_rules.wait_ms.is_some() {
+                merged.wait_ms = host_rules.wait_ms;
+            }
         }
         merged
     }

@@ -2,7 +2,11 @@ use clap::Parser;
 use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
-#[command(name = "w2m", version, about = "Download a web page and convert it to Markdown")]
+#[command(
+    name = "w2m",
+    version,
+    about = "Download a web page and convert it to Markdown"
+)]
 pub struct Cli {
     /// URL of the page to convert.
     pub url: String,
@@ -64,8 +68,18 @@ mod tests {
     #[test]
     fn parses_full_flags() {
         let cli = Cli::try_parse_from([
-            "w2m", "https://example.com", "-o", "out", "--selector", "main",
-            "--no-assets", "--concurrency", "4", "--wait-ms", "3000", "-vv",
+            "w2m",
+            "https://example.com",
+            "-o",
+            "out",
+            "--selector",
+            "main",
+            "--no-assets",
+            "--concurrency",
+            "4",
+            "--wait-ms",
+            "3000",
+            "-vv",
         ])
         .unwrap();
         assert_eq!(cli.out.as_deref(), Some(std::path::Path::new("out")));

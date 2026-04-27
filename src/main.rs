@@ -6,7 +6,7 @@ use url::Url;
 use w2m::cli::Cli;
 use w2m::config::{Config, HostRules};
 use w2m::output::RenderMode;
-use w2m::pipeline::{run, Opts, Summary};
+use w2m::pipeline::{run, Opts, RenderStrategy, Summary};
 
 const DEFAULT_CONCURRENCY: usize = 8;
 const DEFAULT_WAIT_MS: u64 = 2000;
@@ -96,35 +96,44 @@ fn load_config(explicit: Option<&std::path::Path>) -> std::io::Result<Config> {
 
 fn resolve_opts(cli: &Cli, rules: &HostRules, url: &Url) -> Opts {
     // Priority for each field: CLI flag > config rule > built-in default.
-    let force_render = cli.render || rules.render.unwrap_or(false);
-    let no_render = cli.no_render || rules.no_render.unwrap_or(false);
-    let selector = cli
-        .selector
-        .clone()
-        .or_else(|| rules.selector.clone());
+    let render = resolve_render(cli, rules);
+    let selector = cli.selector.clone().or_else(|| rules.selector.clone());
     let no_assets = cli.no_assets || rules.no_assets.unwrap_or(false);
     let concurrency = cli
         .concurrency
         .or(rules.concurrency)
         .unwrap_or(DEFAULT_CONCURRENCY);
-    let wait_ms = cli
-        .wait_ms
-        .or(rules.wait_ms)
-        .unwrap_or(DEFAULT_WAIT_MS);
-    let out_dir = cli
-        .out
-        .clone()
-        .unwrap_or_else(|| default_out_dir(url));
+    let wait_ms = cli.wait_ms.or(rules.wait_ms).unwrap_or(DEFAULT_WAIT_MS);
+    let out_dir = cli.out.clone().unwrap_or_else(|| default_out_dir(url));
 
     Opts {
         out_dir,
-        force_render,
-        no_render,
+        render,
         selector,
         no_assets,
         concurrency,
         wait_ms,
     }
+}
+
+/// CLI render flags always win over the host config. Only when neither CLI
+/// flag is set do we look at the host rules. This is what fixes the bug
+/// where `[hosts.foo] render = true` could not be turned off with
+/// `--no-render` on the command line.
+fn resolve_render(cli: &Cli, rules: &HostRules) -> RenderStrategy {
+    if cli.render {
+        return RenderStrategy::Force;
+    }
+    if cli.no_render {
+        return RenderStrategy::Disabled;
+    }
+    if rules.render == Some(true) {
+        return RenderStrategy::Force;
+    }
+    if rules.no_render == Some(true) {
+        return RenderStrategy::Disabled;
+    }
+    RenderStrategy::Auto
 }
 
 fn init_tracing(verbosity: u8) {
@@ -143,14 +152,105 @@ fn init_tracing(verbosity: u8) {
 
 fn default_out_dir(url: &Url) -> PathBuf {
     let host = url.host_str().unwrap_or("page");
-    let path = url
-        .path()
-        .trim_matches('/')
-        .replace('/', "-");
-    let slug = if path.is_empty() {
+    let path = url.path().trim_matches('/').replace('/', "-");
+    let mut slug = if path.is_empty() {
         host.to_string()
     } else {
         format!("{host}-{path}")
     };
+    if let Some(q) = url.query() {
+        if !q.is_empty() {
+            slug.push('-');
+            slug.push_str(&sanitize_slug(q));
+        }
+    }
     PathBuf::from(slug)
+}
+
+fn sanitize_slug(s: &str) -> String {
+    s.chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use w2m::cli::Cli;
+
+    fn cli(args: &[&str]) -> Cli {
+        let mut full = vec!["w2m"];
+        full.extend_from_slice(args);
+        Cli::try_parse_from(full).unwrap()
+    }
+
+    #[test]
+    fn cli_no_render_overrides_host_render_true() {
+        // The original bug: `[hosts.foo] render = true` plus CLI `--no-render`
+        // collapsed to `force_render=true && no_render=true`, and the pipeline
+        // silently picked headless.
+        let rules = HostRules {
+            render: Some(true),
+            ..Default::default()
+        };
+        let url = Url::parse("https://example.com/x").unwrap();
+        let cli = cli(&["https://example.com/x", "--no-render"]);
+        let opts = resolve_opts(&cli, &rules, &url);
+        assert_eq!(opts.render, RenderStrategy::Disabled);
+    }
+
+    #[test]
+    fn cli_render_overrides_host_no_render() {
+        let rules = HostRules {
+            no_render: Some(true),
+            ..Default::default()
+        };
+        let url = Url::parse("https://example.com/x").unwrap();
+        let cli = cli(&["https://example.com/x", "--render"]);
+        let opts = resolve_opts(&cli, &rules, &url);
+        assert_eq!(opts.render, RenderStrategy::Force);
+    }
+
+    #[test]
+    fn host_render_applies_when_cli_silent() {
+        let rules = HostRules {
+            render: Some(true),
+            ..Default::default()
+        };
+        let url = Url::parse("https://example.com/x").unwrap();
+        let cli = cli(&["https://example.com/x"]);
+        let opts = resolve_opts(&cli, &rules, &url);
+        assert_eq!(opts.render, RenderStrategy::Force);
+    }
+
+    #[test]
+    fn neither_set_means_auto() {
+        let rules = HostRules::default();
+        let url = Url::parse("https://example.com/x").unwrap();
+        let cli = cli(&["https://example.com/x"]);
+        let opts = resolve_opts(&cli, &rules, &url);
+        assert_eq!(opts.render, RenderStrategy::Auto);
+    }
+
+    #[test]
+    fn slug_distinguishes_query_strings() {
+        // Two URLs that previously slugged identically and would clobber
+        // each other's output dir.
+        let a = Url::parse("https://example.com/article?id=1").unwrap();
+        let b = Url::parse("https://example.com/article?id=2").unwrap();
+        assert_ne!(default_out_dir(&a), default_out_dir(&b));
+    }
+
+    #[test]
+    fn slug_omits_empty_query() {
+        let a = Url::parse("https://example.com/article").unwrap();
+        let b = Url::parse("https://example.com/article?").unwrap();
+        assert_eq!(default_out_dir(&a), default_out_dir(&b));
+    }
 }

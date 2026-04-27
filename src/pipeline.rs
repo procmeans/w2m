@@ -11,10 +11,27 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use url::Url;
 
+/// What the pipeline should do about headless rendering.
+///
+/// Replaces an earlier `force_render: bool` + `no_render: bool` pair: the two
+/// booleans could end up both true after CLI/config merging, which silently
+/// gave headless precedence and contradicted the documented "CLI > config"
+/// priority. A single enum makes the choice unambiguous.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum RenderStrategy {
+    /// Try a static fetch first; fall back to headless if the page looks like
+    /// an empty SPA shell or extraction returns nothing.
+    #[default]
+    Auto,
+    /// Always go straight to headless.
+    Force,
+    /// Static only — never invoke headless, even on empty SPA shells.
+    Disabled,
+}
+
 pub struct Opts {
     pub out_dir: PathBuf,
-    pub force_render: bool,
-    pub no_render: bool,
+    pub render: RenderStrategy,
     pub selector: Option<String>,
     pub no_assets: bool,
     pub concurrency: usize,
@@ -46,34 +63,52 @@ async fn timed_render(url: &Url, opts: &RenderOpts) -> Result<(String, Duration)
 }
 
 pub async fn run(url: Url, opts: Opts) -> Result<Summary> {
+    // Bail before any network or filesystem work if the destination is
+    // already populated. Stops us from downloading megabytes of images
+    // just to fail at the final write.
+    output::precheck(&opts.out_dir)?;
+
     let render = render_opts(opts.wait_ms);
     let mut total_render_time: Option<Duration> = None;
 
-    let (html, render_mode) = if opts.force_render {
-        let (html, dt) = timed_render(&url, &render).await?;
-        total_render_time = Some(dt);
-        (html, RenderMode::Headless)
-    } else {
-        let static_html = fetcher::fetch_static(&url).await?;
-        if !opts.no_render && looks_like_empty_spa(&static_html) {
-            tracing::info!("static HTML looks like an SPA shell; falling back to headless");
+    let (html, render_mode) = match opts.render {
+        RenderStrategy::Force => {
             let (html, dt) = timed_render(&url, &render).await?;
             total_render_time = Some(dt);
             (html, RenderMode::Headless)
-        } else {
-            (static_html, RenderMode::Static)
+        }
+        RenderStrategy::Disabled => {
+            let html = fetcher::fetch_static(&url).await?;
+            (html, RenderMode::Static)
+        }
+        RenderStrategy::Auto => {
+            let static_html = fetcher::fetch_static(&url).await?;
+            if looks_like_empty_spa(&static_html) {
+                tracing::info!("static HTML looks like an SPA shell; falling back to headless");
+                let (html, dt) = timed_render(&url, &render).await?;
+                total_render_time = Some(dt);
+                (html, RenderMode::Headless)
+            } else {
+                (static_html, RenderMode::Static)
+            }
         }
     };
 
     let (article, render_mode) = match extractor::extract(&html, &url, opts.selector.as_deref()) {
         Ok(a) => (a, render_mode),
-        Err(W2mError::ExtractionEmpty) if !opts.force_render && !opts.no_render => {
-            tracing::info!("extraction empty; retrying with headless render");
-            let (rendered, dt) = timed_render(&url, &render).await?;
-            total_render_time = Some(total_render_time.map_or(dt, |prev| prev + dt));
-            let article = extractor::extract(&rendered, &url, opts.selector.as_deref())?;
-            (article, RenderMode::Headless)
-        }
+        Err(W2mError::ExtractionEmpty) => match opts.render {
+            RenderStrategy::Auto => {
+                tracing::info!("extraction empty; retrying with headless render");
+                let (rendered, dt) = timed_render(&url, &render).await?;
+                total_render_time = Some(total_render_time.map_or(dt, |prev| prev + dt));
+                let article = extractor::extract(&rendered, &url, opts.selector.as_deref())?;
+                (article, RenderMode::Headless)
+            }
+            RenderStrategy::Disabled if looks_like_empty_spa(&html) => {
+                return Err(W2mError::EmptySpaWithoutRender);
+            }
+            _ => return Err(W2mError::ExtractionEmpty),
+        },
         Err(e) => return Err(e),
     };
 

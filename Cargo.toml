@@ -11,6 +11,7 @@ chromiumoxide = { version = "0.7", features = ["tokio-runtime"], default-feature
 scraper = "0.20"
 readability = "0.3"
 htmd = "0.1"
+lol_html = "2"
 url = "2.5"
 thiserror = "1"
 tracing = "0.1"

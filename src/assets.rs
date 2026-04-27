@@ -4,11 +4,7 @@ use futures::stream::{self, StreamExt};
 use std::path::{Path, PathBuf};
 use url::Url;
 
-pub async fn download_all(
-    urls: Vec<Url>,
-    out_dir: &Path,
-    concurrency: usize,
-) -> Result<AssetMap> {
+pub async fn download_all(urls: Vec<Url>, out_dir: &Path, concurrency: usize) -> Result<AssetMap> {
     if urls.is_empty() {
         return Ok(AssetMap::new());
     }
@@ -67,7 +63,7 @@ async fn download_one(
 fn guess_filename(url: &Url, idx: usize) -> String {
     let last_seg = url
         .path_segments()
-        .and_then(|s| s.last())
+        .and_then(|mut s| s.next_back())
         .filter(|s| !s.is_empty())
         .map(sanitize)
         .unwrap_or_default();
@@ -80,7 +76,13 @@ fn guess_filename(url: &Url, idx: usize) -> String {
 
 fn sanitize(s: &str) -> String {
     s.chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
