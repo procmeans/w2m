@@ -27,14 +27,19 @@ pub struct Cli {
     #[arg(long)]
     pub no_assets: bool,
 
-    /// Parallel image downloads.
-    #[arg(long, default_value_t = 8)]
-    pub concurrency: usize,
+    /// Parallel image downloads. Default 8 unless overridden by config.
+    #[arg(long)]
+    pub concurrency: Option<usize>,
 
     /// Milliseconds to wait after navigation before reading the rendered DOM
-    /// (only relevant for the headless render path). Heavy SPAs may need 3000-5000.
-    #[arg(long, default_value_t = 2000)]
-    pub wait_ms: u64,
+    /// (only relevant for the headless render path). Default 2000 unless
+    /// overridden by config. Heavy SPAs may need 3000-5000.
+    #[arg(long)]
+    pub wait_ms: Option<u64>,
+
+    /// Path to config file. Default: $XDG_CONFIG_HOME/w2m/config.toml.
+    #[arg(long)]
+    pub config: Option<PathBuf>,
 
     /// Increase verbosity (-v debug, -vv trace).
     #[arg(short, action = clap::ArgAction::Count)]
@@ -52,20 +57,22 @@ mod tests {
         assert_eq!(cli.url, "https://example.com");
         assert!(cli.out.is_none());
         assert!(!cli.render);
-        assert_eq!(cli.concurrency, 8);
+        assert!(cli.concurrency.is_none());
+        assert!(cli.wait_ms.is_none());
     }
 
     #[test]
     fn parses_full_flags() {
         let cli = Cli::try_parse_from([
             "w2m", "https://example.com", "-o", "out", "--selector", "main",
-            "--no-assets", "--concurrency", "4", "-vv",
+            "--no-assets", "--concurrency", "4", "--wait-ms", "3000", "-vv",
         ])
         .unwrap();
         assert_eq!(cli.out.as_deref(), Some(std::path::Path::new("out")));
         assert_eq!(cli.selector.as_deref(), Some("main"));
         assert!(cli.no_assets);
-        assert_eq!(cli.concurrency, 4);
+        assert_eq!(cli.concurrency, Some(4));
+        assert_eq!(cli.wait_ms, Some(3000));
         assert_eq!(cli.verbose, 2);
     }
 

@@ -43,6 +43,8 @@ Flags:
 | `--selector <CSS>` | none | Override readability with a CSS selector |
 | `--no-assets` | off | Skip image downloads |
 | `--concurrency <N>` | 8 | Parallel image downloads |
+| `--wait-ms <N>` | 2000 | Settle delay after navigation (headless path) |
+| `--config <PATH>` | XDG default | Override config file path |
 | `-v`, `-vv` | off | Verbose / very verbose |
 
 Exit codes: `0` success; `1` generic; `2` network; `3` render; `4` extraction.
@@ -78,6 +80,40 @@ to skip the static attempt, or `--no-render` to disable the fallback.
 
 Content extraction uses a readability heuristic by default. Pass
 `--selector "main article"` (or any CSS selector) to override.
+
+## Configuration
+
+Per-host defaults can be set in `~/.config/w2m/config.toml` so you don't have
+to repeat flags for sites you visit often. Lookup priority:
+
+> CLI flag > `[hosts."<exact-host>"]` > `[defaults]` > built-in default
+
+Example:
+
+```toml
+[defaults]
+# wait_ms = 2000
+# concurrency = 8
+
+[hosts."open.oceanengine.com"]
+render = true
+wait_ms = 5000
+selector = ".doc-content-body"
+
+[hosts."react.dev"]
+render = true
+wait_ms = 3000
+```
+
+After this is in place, `w2m https://open.oceanengine.com/...` works with no
+extra flags.
+
+Available keys per host: `render`, `no_render`, `selector`, `no_assets`,
+`concurrency`, `wait_ms`. The same keys are accepted under `[defaults]`.
+
+w2m also looks at the platform-native config dir (`dirs::config_dir()`) as a
+fallback — on macOS that's `~/Library/Application Support/w2m/config.toml` —
+but `~/.config/w2m/config.toml` is preferred and used by default.
 
 ## Manual smoke targets
 
