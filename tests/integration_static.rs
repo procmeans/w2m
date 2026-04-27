@@ -41,7 +41,10 @@ async fn end_to_end_static_with_image_download() {
         wait_ms: 0,
     };
 
-    run(url, opts).await.unwrap();
+    let summary = run(url, opts).await.unwrap();
+    assert!(summary.bytes_written > 0);
+    assert_eq!(summary.images_downloaded, 1);
+    assert_eq!(summary.images_attempted, 1);
 
     let md = fs::read_to_string(dir.path().join("index.md")).unwrap();
     assert!(md.contains("---\n"));

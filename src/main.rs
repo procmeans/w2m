@@ -5,7 +5,8 @@ use tracing_subscriber::EnvFilter;
 use url::Url;
 use w2m::cli::Cli;
 use w2m::config::{Config, HostRules};
-use w2m::pipeline::{run, Opts};
+use w2m::output::RenderMode;
+use w2m::pipeline::{run, Opts, Summary};
 
 const DEFAULT_CONCURRENCY: usize = 8;
 const DEFAULT_WAIT_MS: u64 = 2000;
@@ -37,11 +38,49 @@ async fn main() -> ExitCode {
     let opts = resolve_opts(&cli, &rules, &url);
 
     match run(url, opts).await {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(summary) => {
+            print_summary(&summary);
+            ExitCode::SUCCESS
+        }
         Err(e) => {
             eprintln!("error: {e}");
             ExitCode::from(e.exit_code() as u8)
         }
+    }
+}
+
+fn print_summary(s: &Summary) {
+    let render = match (s.render_mode, s.render_duration) {
+        (RenderMode::Static, _) => "static".to_string(),
+        (RenderMode::Headless, Some(d)) => format!("headless ({:.1}s)", d.as_secs_f64()),
+        (RenderMode::Headless, None) => "headless".to_string(),
+    };
+    let skipped = s.images_attempted.saturating_sub(s.images_downloaded);
+    let images = if s.images_attempted == 0 {
+        "none".to_string()
+    } else if skipped == 0 {
+        format!("{} downloaded", s.images_downloaded)
+    } else {
+        format!("{} downloaded, {} skipped", s.images_downloaded, skipped)
+    };
+
+    eprintln!("\n\u{2713} Saved to {}", s.out_dir.display());
+    eprintln!("  title    {}", s.title);
+    eprintln!("  render   {render}");
+    eprintln!("  size     {}", human_size(s.bytes_written));
+    eprintln!("  images   {images}");
+}
+
+fn human_size(bytes: u64) -> String {
+    const K: f64 = 1024.0;
+    const M: f64 = K * 1024.0;
+    let b = bytes as f64;
+    if b >= M {
+        format!("{:.1} MB", b / M)
+    } else if b >= K {
+        format!("{:.1} KB", b / K)
+    } else {
+        format!("{bytes} B")
     }
 }
 

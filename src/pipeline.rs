@@ -8,7 +8,7 @@ use crate::renderer::{self, RenderOpts};
 use chrono::Utc;
 use scraper::{Html, Selector};
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use url::Url;
 
 pub struct Opts {
@@ -21,6 +21,17 @@ pub struct Opts {
     pub wait_ms: u64,
 }
 
+#[derive(Debug)]
+pub struct Summary {
+    pub out_dir: PathBuf,
+    pub title: String,
+    pub render_mode: RenderMode,
+    pub render_duration: Option<Duration>,
+    pub bytes_written: u64,
+    pub images_attempted: usize,
+    pub images_downloaded: usize,
+}
+
 fn render_opts(wait_ms: u64) -> RenderOpts {
     RenderOpts {
         timeout: Duration::from_secs(30),
@@ -28,39 +39,53 @@ fn render_opts(wait_ms: u64) -> RenderOpts {
     }
 }
 
-pub async fn run(url: Url, opts: Opts) -> Result<()> {
+async fn timed_render(url: &Url, opts: &RenderOpts) -> Result<(String, Duration)> {
+    let start = Instant::now();
+    let html = renderer::render_dynamic(url, opts).await?;
+    Ok((html, start.elapsed()))
+}
+
+pub async fn run(url: Url, opts: Opts) -> Result<Summary> {
     let render = render_opts(opts.wait_ms);
+    let mut total_render_time: Option<Duration> = None;
 
     let (html, render_mode) = if opts.force_render {
-        let html = renderer::render_dynamic(&url, &render).await?;
+        let (html, dt) = timed_render(&url, &render).await?;
+        total_render_time = Some(dt);
         (html, RenderMode::Headless)
     } else {
         let static_html = fetcher::fetch_static(&url).await?;
         if !opts.no_render && looks_like_empty_spa(&static_html) {
             tracing::info!("static HTML looks like an SPA shell; falling back to headless");
-            let html = renderer::render_dynamic(&url, &render).await?;
+            let (html, dt) = timed_render(&url, &render).await?;
+            total_render_time = Some(dt);
             (html, RenderMode::Headless)
         } else {
             (static_html, RenderMode::Static)
         }
     };
 
-    let article = match extractor::extract(&html, &url, opts.selector.as_deref()) {
-        Ok(a) => a,
+    let (article, render_mode) = match extractor::extract(&html, &url, opts.selector.as_deref()) {
+        Ok(a) => (a, render_mode),
         Err(W2mError::ExtractionEmpty) if !opts.force_render && !opts.no_render => {
             tracing::info!("extraction empty; retrying with headless render");
-            let rendered = renderer::render_dynamic(&url, &render).await?;
-            extractor::extract(&rendered, &url, opts.selector.as_deref())?
+            let (rendered, dt) = timed_render(&url, &render).await?;
+            total_render_time = Some(total_render_time.map_or(dt, |prev| prev + dt));
+            let article = extractor::extract(&rendered, &url, opts.selector.as_deref())?;
+            (article, RenderMode::Headless)
         }
         Err(e) => return Err(e),
     };
 
-    let asset_map: AssetMap = if opts.no_assets {
-        AssetMap::new()
+    let (asset_map, attempted) = if opts.no_assets {
+        (AssetMap::new(), 0usize)
     } else {
         let urls = converter::collect_image_urls(&article, &url);
-        assets::download_all(urls, &opts.out_dir, opts.concurrency).await?
+        let attempted = urls.len();
+        let map = assets::download_all(urls, &opts.out_dir, opts.concurrency).await?;
+        (map, attempted)
     };
+    let downloaded = asset_map.len();
 
     let md = converter::to_markdown(&article, &url, &asset_map);
 
@@ -71,7 +96,20 @@ pub async fn run(url: Url, opts: Opts) -> Result<()> {
         render_mode,
     };
     output::write_bundle(&opts.out_dir, &md, &meta)?;
-    Ok(())
+
+    let bytes_written = std::fs::metadata(opts.out_dir.join("index.md"))
+        .map(|m| m.len())
+        .unwrap_or(0);
+
+    Ok(Summary {
+        out_dir: opts.out_dir,
+        title: article.title,
+        render_mode,
+        render_duration: total_render_time,
+        bytes_written,
+        images_attempted: attempted,
+        images_downloaded: downloaded,
+    })
 }
 
 pub(crate) fn looks_like_empty_spa(html: &str) -> bool {
